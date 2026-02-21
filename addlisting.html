@@ -356,28 +356,35 @@
         const folderId = generateFolderId(address);
         const photoUrls = [];
 
-        // Step 1: Upload photos one at a time to Google Drive
+        // Step 1: Upload photos to Google Drive (4 at a time for speed)
         if (selectedFiles.length > 0) {
           status.className = 'form-status loading';
-          status.textContent = `Uploading photos: 0 / ${selectedFiles.length}...`;
+          let completed = 0;
+          const total = selectedFiles.length;
+          status.textContent = `Uploading photos: 0 / ${total}...`;
 
-          for (let i = 0; i < selectedFiles.length; i++) {
-            status.textContent = `Uploading photo ${i + 1} of ${selectedFiles.length}...`;
-
-            const b64 = await fileToBase64(selectedFiles[i]);
-            const result = await sendToWebhook({
-              action: 'upload_photo',
-              folderId: folderId,
-              fileName: selectedFiles[i].name,
-              mimeType: selectedFiles[i].type,
-              photoData: b64,
+          const PARALLEL = 4;
+          for (let i = 0; i < total; i += PARALLEL) {
+            const batch = selectedFiles.slice(i, i + PARALLEL);
+            const promises = batch.map(async (file) => {
+              const b64 = await fileToBase64(file);
+              const result = await sendToWebhook({
+                action: 'upload_photo',
+                folderId: folderId,
+                fileName: file.name,
+                mimeType: file.type,
+                photoData: b64,
+              });
+              completed++;
+              status.textContent = `Uploading photos: ${completed} / ${total}...`;
+              if (result.status === 'ok' && result.url) {
+                return result.url;
+              }
+              console.warn('Photo upload failed:', file.name, result);
+              return null;
             });
-
-            if (result.status === 'ok' && result.url) {
-              photoUrls.push(result.url);
-            } else {
-              console.warn('Photo upload failed:', selectedFiles[i].name, result);
-            }
+            const results = await Promise.all(promises);
+            photoUrls.push(...results.filter(Boolean));
           }
         }
 
