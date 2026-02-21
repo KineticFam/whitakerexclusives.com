@@ -72,7 +72,7 @@ def parse_listing_from_body(body):
                 listing[json_key] = val
 
     # Description (may be multi-line)
-    desc_match = re.search(r'^Description\s*:\s*(.+?)(?=^Features\s*:|^$|\Z)', body, re.MULTILINE | re.IGNORECASE | re.DOTALL)
+    desc_match = re.search(r'^Description\s*:\s*(.+?)(?=^Features\s*:|^Photos\s*:|^Photo Folder\s*:|^$|\Z)', body, re.MULTILINE | re.IGNORECASE | re.DOTALL)
     if desc_match:
         listing['description'] = desc_match.group(1).strip()
 
@@ -80,6 +80,15 @@ def parse_listing_from_body(body):
     features = parse_field(body, 'features')
     if features:
         listing['features'] = [f.strip() for f in features.split(',') if f.strip()]
+
+    # Photos (Drive URLs)
+    photos = []
+    for line in body.split('\n'):
+        line = line.strip()
+        if line.startswith('https://drive.google.com/uc?id='):
+            photos.append(line)
+    if photos:
+        listing['photos'] = photos
 
     # Defaults
     listing.setdefault('city', 'Fort Lauderdale')
@@ -106,43 +115,22 @@ def find_listing(listings, identifier):
 
 def extract_identifier(body):
     """Extract the listing identifier (address or MLS) from first line or field."""
-    # Check for explicit fields first
     addr = parse_field(body, 'address')
     if addr:
         return addr
     mls = parse_field(body, 'mls')
     if mls:
         return mls
-    # Fall back to first non-empty line
     for line in body.strip().split('\n'):
         line = line.strip()
         if line:
             return line
     return None
 
-def download_attachments(msg_id, listing_id):
-    """Download email attachments to photos/listing-id/ directory."""
-    photo_dir = PHOTOS_DIR / listing_id
-    photo_dir.mkdir(parents=True, exist_ok=True)
-
-    # Use gog to save attachments
-    out, rc = run(f'gog mail attachments --account {ACCOUNT} --message-id "{msg_id}" --output-dir "{photo_dir}"')
-    if rc != 0:
-        print(f"  Warning: Could not download attachments: {out}")
-        return []
-
-    # Collect photo paths (relative to repo root)
-    photos = []
-    if photo_dir.exists():
-        for f in sorted(photo_dir.iterdir()):
-            if f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp', '.gif'):
-                photos.append(f"photos/{listing_id}/{f.name}")
-    return photos
-
 def send_confirmation(to, subject, body_text):
     """Send a confirmation email via gog."""
-    escaped_body = body_text.replace('"', '\\"')
-    run(f'gog mail send --account {ACCOUNT} --to "{to}" --subject "{subject}" --body "{escaped_body}"')
+    escaped_body = body_text.replace("'", "'\\''")
+    run(f"gog gmail send --account {ACCOUNT} --to '{to}' --subject '{subject}' --body '{escaped_body}'")
 
 def git_deploy(action, address):
     """Commit and push listings.json."""
@@ -155,24 +143,40 @@ def git_deploy(action, address):
     else:
         print(f"  Deployed: {msg}")
 
-def label_processed(msg_id):
-    """Label email as processed so we don't re-process it."""
-    run(f'gog mail label --account {ACCOUNT} --message-id "{msg_id}" --add "processed"')
+def ensure_processed_label():
+    """Create 'processed' label if it doesn't exist."""
+    out, _ = run(f'gog gmail labels list --account {ACCOUNT} --plain')
+    if 'processed' not in out.lower():
+        run(f'gog gmail labels create --account {ACCOUNT} processed')
+        print("  Created 'processed' label")
 
-def get_unprocessed_emails():
-    """Fetch unread emails that aren't labeled 'processed'."""
-    out, rc = run(f'gog mail list --account {ACCOUNT} --label INBOX --exclude-label processed --format json')
-    if rc != 0 or not out:
-        return []
-    try:
-        return json.loads(out)
-    except json.JSONDecodeError:
-        print(f"  Warning: Could not parse email list: {out[:200]}")
-        return []
+def label_processed(thread_id):
+    """Label thread as processed and remove from inbox."""
+    run(f'gog gmail thread modify --account {ACCOUNT} --add processed --remove INBOX {thread_id}')
 
-def get_email(msg_id):
-    """Fetch a single email's full content."""
-    out, rc = run(f'gog mail read --account {ACCOUNT} --message-id "{msg_id}" --format json')
+def get_emails():
+    """Fetch emails matching listing commands, excluding already processed."""
+    emails = []
+    for subject_query in ['subject:"Add Listing"', 'subject:"Update Listing"', 'subject:"Delete Listing"']:
+        query = f'{subject_query} -label:processed in:inbox'
+        out, rc = run(f'gog gmail search --account {ACCOUNT} --json "{query}"')
+        if rc != 0 or not out:
+            continue
+        try:
+            results = json.loads(out)
+            if isinstance(results, list):
+                emails.extend(results)
+            elif isinstance(results, dict) and 'threads' in results:
+                emails.extend(results['threads'])
+            elif isinstance(results, dict) and 'messages' in results:
+                emails.extend(results['messages'])
+        except json.JSONDecodeError:
+            print(f"  Warning: Could not parse search results for {subject_query}")
+    return emails
+
+def get_message(msg_id):
+    """Fetch a single message's content."""
+    out, rc = run(f'gog gmail get --account {ACCOUNT} --json {msg_id}')
     if rc != 0 or not out:
         return None
     try:
@@ -180,11 +184,18 @@ def get_email(msg_id):
     except json.JSONDecodeError:
         return None
 
-def process_add(email_data, listings):
+def process_add(msg_data, listings):
     """Handle an Add Listing email."""
-    body = email_data.get('body', '')
-    msg_id = email_data.get('id', '')
-    sender = email_data.get('from', '')
+    body = msg_data.get('body', '')
+    sender = ''
+    headers = msg_data.get('headers', {})
+    if isinstance(headers, dict):
+        sender = headers.get('From', headers.get('from', ''))
+    elif isinstance(headers, list):
+        for h in headers:
+            if h.get('name', '').lower() == 'from':
+                sender = h.get('value', '')
+                break
 
     listing = parse_listing_from_body(body)
     if not listing.get('address'):
@@ -195,12 +206,7 @@ def process_add(email_data, listings):
     listing['id'] = listing_id
     listing['status'] = 'active'
     listing['addedDate'] = datetime.now().strftime('%Y-%m-%d')
-    listing['photos'] = []
-
-    # Download attached photos
-    if msg_id:
-        photos = download_attachments(msg_id, listing_id)
-        listing['photos'] = photos
+    listing.setdefault('photos', [])
 
     # Check for duplicate
     existing = find_listing(listings, listing['address'])
@@ -212,15 +218,20 @@ def process_add(email_data, listings):
 
     save_listings(listings)
     git_deploy('add', listing['address'])
-    send_confirmation(sender, f"Listing Added: {listing['address']}",
-                      f"Your listing at {listing['address']} has been added to whitakerexclusives.com.\n\nPrice: ${listing.get('price', 'N/A'):,}\nStatus: Active")
+
+    if sender:
+        send_confirmation(sender, f"Listing Added: {listing['address']}",
+                          f"Your listing at {listing['address']} has been added to whitakerexclusives.com.\n\nPrice: ${listing.get('price', 'N/A'):,}\nPhotos: {len(listing.get('photos', []))}\nStatus: Active")
     print(f"  Added: {listing['address']}")
     return True
 
-def process_update(email_data, listings):
+def process_update(msg_data, listings):
     """Handle an Update Listing email."""
-    body = email_data.get('body', '')
-    sender = email_data.get('from', '')
+    body = msg_data.get('body', '')
+    sender = ''
+    headers = msg_data.get('headers', {})
+    if isinstance(headers, dict):
+        sender = headers.get('From', headers.get('from', ''))
 
     identifier = extract_identifier(body)
     if not identifier:
@@ -230,28 +241,31 @@ def process_update(email_data, listings):
     listing = find_listing(listings, identifier)
     if not listing:
         print(f"  Error: Listing not found: {identifier}")
-        send_confirmation(sender, "Update Failed", f"Could not find listing matching: {identifier}")
+        if sender:
+            send_confirmation(sender, "Update Failed", f"Could not find listing matching: {identifier}")
         return False
 
-    # Parse update fields
     updates = parse_listing_from_body(body)
-    # Remove empty/None values
     updates = {k: v for k, v in updates.items() if v is not None and v != ''}
-    # Don't override id/status/photos unless explicit
     updates.pop('id', None)
 
     listing.update(updates)
     save_listings(listings)
     git_deploy('update', listing['address'])
-    send_confirmation(sender, f"Listing Updated: {listing['address']}",
-                      f"Your listing at {listing['address']} has been updated on whitakerexclusives.com.\n\nUpdated fields: {', '.join(updates.keys())}")
+
+    if sender:
+        send_confirmation(sender, f"Listing Updated: {listing['address']}",
+                          f"Your listing at {listing['address']} has been updated.\n\nUpdated fields: {', '.join(updates.keys())}")
     print(f"  Updated: {listing['address']}")
     return True
 
-def process_delete(email_data, listings):
+def process_delete(msg_data, listings):
     """Handle a Delete Listing email."""
-    body = email_data.get('body', '')
-    sender = email_data.get('from', '')
+    body = msg_data.get('body', '')
+    sender = ''
+    headers = msg_data.get('headers', {})
+    if isinstance(headers, dict):
+        sender = headers.get('From', headers.get('from', ''))
 
     identifier = extract_identifier(body)
     if not identifier:
@@ -261,29 +275,33 @@ def process_delete(email_data, listings):
     listing = find_listing(listings, identifier)
     if not listing:
         print(f"  Error: Listing not found: {identifier}")
-        send_confirmation(sender, "Delete Failed", f"Could not find listing matching: {identifier}")
+        if sender:
+            send_confirmation(sender, "Delete Failed", f"Could not find listing matching: {identifier}")
         return False
 
     address = listing['address']
     listing_id = listing['id']
     listings.remove(listing)
 
-    # Remove photos directory
     photo_dir = PHOTOS_DIR / listing_id
     if photo_dir.exists():
         shutil.rmtree(photo_dir)
 
     save_listings(listings)
     git_deploy('delete', address)
-    send_confirmation(sender, f"Listing Deleted: {address}",
-                      f"The listing at {address} has been removed from whitakerexclusives.com.")
+
+    if sender:
+        send_confirmation(sender, f"Listing Deleted: {address}",
+                          f"The listing at {address} has been removed from whitakerexclusives.com.")
     print(f"  Deleted: {address}")
     return True
 
 def main():
     print(f"[{datetime.now().isoformat()}] Checking inbox...")
 
-    emails = get_unprocessed_emails()
+    ensure_processed_label()
+    emails = get_emails()
+
     if not emails:
         print("  No new emails to process.")
         return
@@ -291,36 +309,48 @@ def main():
     listings = load_listings()
     processed_count = 0
 
-    for email_summary in emails:
-        msg_id = email_summary.get('id', '')
-        subject = email_summary.get('subject', '').strip().lower()
+    for email_item in emails:
+        # Could be thread or message format
+        thread_id = email_item.get('threadId', email_item.get('id', ''))
+        msg_id = email_item.get('id', '')
 
+        # If this is a thread, get the first message
+        if 'messages' in email_item:
+            msg_id = email_item['messages'][0].get('id', msg_id)
+
+        subject = email_item.get('subject', email_item.get('snippet', '')).strip().lower()
+
+        # Try to get subject from the search result
         if not any(cmd in subject for cmd in ['add listing', 'update listing', 'delete listing']):
+            # Fetch the message to get subject
+            msg_data = get_message(msg_id)
+            if msg_data:
+                headers = msg_data.get('headers', {})
+                if isinstance(headers, dict):
+                    subject = headers.get('Subject', headers.get('subject', '')).lower()
+            if not any(cmd in subject for cmd in ['add listing', 'update listing', 'delete listing']):
+                continue
+
+        msg_data = get_message(msg_id)
+        if not msg_data:
+            print(f"  Could not read message {msg_id}")
             continue
 
-        email_data = get_email(msg_id)
-        if not email_data:
-            print(f"  Could not read email {msg_id}")
-            continue
-
-        email_data['id'] = msg_id
-        email_data['from'] = email_summary.get('from', '')
-
-        print(f"  Processing: {email_summary.get('subject', '')}")
+        print(f"  Processing: {subject}")
 
         success = False
         if 'add listing' in subject:
-            success = process_add(email_data, listings)
+            success = process_add(msg_data, listings)
         elif 'update listing' in subject:
-            success = process_update(email_data, listings)
+            success = process_update(msg_data, listings)
         elif 'delete listing' in subject:
-            success = process_delete(email_data, listings)
+            success = process_delete(msg_data, listings)
 
         if success:
             processed_count += 1
 
-        # Always label as processed to avoid re-processing
-        label_processed(msg_id)
+        # Always label as processed
+        label_processed(thread_id if thread_id else msg_id)
 
     print(f"  Done. Processed {processed_count} listing email(s).")
 
