@@ -227,7 +227,7 @@
             <input type="file" id="photos" name="photos" multiple accept="image/*">
             <div class="upload-icon">📷</div>
             <p>Drop photos here or click to browse</p>
-            <div class="upload-hint">JPG, PNG, WebP — up to 10 photos</div>
+            <div class="upload-hint">JPG, PNG, WebP — up to 50 photos</div>
           </div>
           <div class="photo-previews" id="photo-previews"></div>
         </div>
@@ -283,7 +283,7 @@
 
     function handleFiles() {
       const newFiles = Array.from(photoInput.files);
-      selectedFiles = [...selectedFiles, ...newFiles].slice(0, 10);
+      selectedFiles = [...selectedFiles, ...newFiles].slice(0, 50);
       renderPreviews();
     }
 
