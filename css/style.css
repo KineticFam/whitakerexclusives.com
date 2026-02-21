@@ -309,9 +309,9 @@ section { padding: 100px 0; }
 .contact-map {
   aspect-ratio: 4/3; background: var(--navy);
   border: 1px solid rgba(201,168,76,0.15);
-  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
 }
-.contact-map span { color: var(--gray-dark); font-size: 0.9rem; }
+.contact-map iframe { display: block; }
 
 @media (max-width: 768px) {
   .contact-grid { grid-template-columns: 1fr; }
