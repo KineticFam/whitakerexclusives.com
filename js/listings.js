@@ -90,17 +90,8 @@ async function initListingDetail() {
   // Gallery
   const photos = l.photos && l.photos.length ? l.photos : [];
   let galleryHtml;
-  if (photos.length >= 3) {
-    galleryHtml = `
-      <div class="listing-gallery">
-        <div class="listing-gallery-main"><img src="${photos[0]}" alt="${l.address}"></div>
-        <div class="listing-gallery-side">
-          <img src="${photos[1]}" alt="${l.address}">
-          <img src="${photos[2]}" alt="${l.address}">
-        </div>
-      </div>`;
-  } else if (photos.length) {
-    galleryHtml = `<div class="listing-gallery"><div class="listing-gallery-main"><img src="${photos[0]}" alt="${l.address}"></div></div>`;
+  if (photos.length) {
+    galleryHtml = `<div class="listing-gallery-hero"><img src="${photos[0]}" alt="${l.address}"></div>`;
   } else {
     galleryHtml = `<div class="listing-gallery-placeholder"><span>No Photos Available</span></div>`;
   }
