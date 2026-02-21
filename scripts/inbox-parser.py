@@ -86,6 +86,9 @@ def parse_listing_from_body(body):
     for line in body.split('\n'):
         line = line.strip()
         if line.startswith('https://drive.google.com/uc?id='):
+            # Convert to embeddable URL
+            photos.append(line.replace('https://drive.google.com/uc?id=', 'https://lh3.googleusercontent.com/d/'))
+        elif line.startswith('https://lh3.googleusercontent.com/d/'):
             photos.append(line)
     if photos:
         listing['photos'] = photos

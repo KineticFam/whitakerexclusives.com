@@ -68,7 +68,7 @@ function handlePhotoUpload(data) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   
   var fileId = file.getId();
-  var directUrl = 'https://drive.google.com/uc?id=' + fileId;
+  var directUrl = 'https://lh3.googleusercontent.com/d/' + fileId;
   
   return ContentService.createTextOutput(
     JSON.stringify({ 
