@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Listing — Whitaker Exclusives</title>
+  <meta name="description" content="Submit a new exclusive listing to Whitaker Exclusives.">
+  <link rel="icon" href="images/favicon.ico">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .form-section { padding: 120px 0 100px; }
+    .form-container { max-width: 720px; margin: 0 auto; }
+    .form-group { margin-bottom: 28px; }
+    .form-group label {
+      display: block; font-size: 0.75rem; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%; padding: 14px 16px; font-size: 1rem;
+      background: var(--card-bg); border: 1px solid rgba(201,168,76,0.2);
+      color: var(--white); font-family: var(--font);
+      transition: border-color var(--transition);
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus {
+      border-color: var(--gold);
+    }
+    .form-group input::placeholder,
+    .form-group textarea::placeholder {
+      color: var(--gray-dark);
+    }
+    .form-group textarea { min-height: 120px; resize: vertical; }
+    .form-group .hint {
+      font-size: 0.8rem; color: var(--gray-dark); margin-top: 6px;
+    }
+    .form-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    .form-row-3 {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;
+    }
+    @media (max-width: 600px) {
+      .form-row, .form-row-3 { grid-template-columns: 1fr; }
+    }
+    .form-divider {
+      border: none; border-top: 1px solid rgba(201,168,76,0.15);
+      margin: 36px 0;
+    }
+    .photo-upload-area {
+      border: 2px dashed rgba(201,168,76,0.3); padding: 40px 24px;
+      text-align: center; cursor: pointer; transition: var(--transition);
+      position: relative;
+    }
+    .photo-upload-area:hover,
+    .photo-upload-area.dragover {
+      border-color: var(--gold); background: rgba(201,168,76,0.05);
+    }
+    .photo-upload-area input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .photo-upload-area .upload-icon {
+      font-size: 2rem; margin-bottom: 8px; color: var(--gold);
+    }
+    .photo-upload-area p { color: var(--gray); font-size: 0.95rem; }
+    .photo-upload-area .upload-hint { font-size: 0.8rem; color: var(--gray-dark); margin-top: 4px; }
+    .photo-previews {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px; margin-top: 16px;
+    }
+    .photo-preview {
+      position: relative; aspect-ratio: 4/3; overflow: hidden;
+      border: 1px solid rgba(201,168,76,0.15);
+    }
+    .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-preview .remove-photo {
+      position: absolute; top: 4px; right: 4px;
+      background: rgba(0,0,0,0.7); color: white; border: none;
+      width: 24px; height: 24px; cursor: pointer; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .submit-btn {
+      display: block; width: 100%; padding: 16px;
+      font-size: 1rem; letter-spacing: 2px; text-transform: uppercase;
+      font-weight: 600; border: 1px solid var(--gold);
+      background: var(--gold); color: var(--navy);
+      cursor: pointer; transition: var(--transition);
+      font-family: var(--font);
+    }
+    .submit-btn:hover { background: var(--gold-light); }
+    .submit-btn:disabled {
+      opacity: 0.5; cursor: not-allowed;
+    }
+    .form-status {
+      margin-top: 20px; padding: 16px; text-align: center;
+      font-size: 0.95rem; display: none;
+    }
+    .form-status.success {
+      display: block; background: rgba(76,175,80,0.1);
+      border: 1px solid rgba(76,175,80,0.3); color: #81c784;
+    }
+    .form-status.error {
+      display: block; background: rgba(244,67,54,0.1);
+      border: 1px solid rgba(244,67,54,0.3); color: #e57373;
+    }
+    .form-status.loading {
+      display: block; background: rgba(201,168,76,0.1);
+      border: 1px solid rgba(201,168,76,0.3); color: var(--gold);
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <img src="images/logo-white.png" alt="Whitaker Realty">
+      </a>
+      <button class="nav-toggle" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="listings.html">Exclusive Listings</a></li>
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#contact">Contact</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="form-section">
+    <div class="container form-container">
+      <div class="section-label">New Listing</div>
+      <h1 class="section-title">Add Exclusive Listing</h1>
+      <div class="section-divider"></div>
+
+      <form id="add-listing-form" enctype="multipart/form-data">
+        <!-- Address -->
+        <div class="form-group">
+          <label for="address">Street Address *</label>
+          <input type="text" id="address" name="address" placeholder="1234 SE 5th Court" required>
+        </div>
+
+        <div class="form-row-3">
+          <div class="form-group">
+            <label for="city">City</label>
+            <input type="text" id="city" name="city" value="Fort Lauderdale">
+          </div>
+          <div class="form-group">
+            <label for="state">State</label>
+            <input type="text" id="state" name="state" value="FL" maxlength="2">
+          </div>
+          <div class="form-group">
+            <label for="zip">Zip Code</label>
+            <input type="text" id="zip" name="zip" placeholder="33301">
+          </div>
+        </div>
+
+        <hr class="form-divider">
+
+        <!-- Property Details -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="price">Price *</label>
+            <input type="text" id="price" name="price" placeholder="2,500,000" required>
+          </div>
+          <div class="form-group">
+            <label for="mls">MLS Number</label>
+            <input type="text" id="mls" name="mls" placeholder="F12345678">
+          </div>
+        </div>
+
+        <div class="form-row-3">
+          <div class="form-group">
+            <label for="beds">Bedrooms *</label>
+            <input type="number" id="beds" name="beds" placeholder="4" min="0" required>
+          </div>
+          <div class="form-group">
+            <label for="baths">Bathrooms *</label>
+            <input type="text" id="baths" name="baths" placeholder="3.5">
+          </div>
+          <div class="form-group">
+            <label for="sqft">Square Feet</label>
+            <input type="text" id="sqft" name="sqft" placeholder="3,200">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="yearBuilt">Year Built</label>
+            <input type="text" id="yearBuilt" name="yearBuilt" placeholder="2020">
+          </div>
+          <div class="form-group">
+            <label for="lotSize">Lot Size</label>
+            <input type="text" id="lotSize" name="lotSize" placeholder="0.25 acres">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="agent">Listing Agent</label>
+          <input type="text" id="agent" name="agent" value="Chad Whitaker">
+        </div>
+
+        <hr class="form-divider">
+
+        <!-- Description & Features -->
+        <div class="form-group">
+          <label for="description">Description *</label>
+          <textarea id="description" name="description" placeholder="Stunning waterfront estate in the heart of Rio Vista with breathtaking views..." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="features">Features</label>
+          <input type="text" id="features" name="features" placeholder="Waterfront, Pool, Dock, 2-Car Garage">
+          <div class="hint">Comma-separated list of features</div>
+        </div>
+
+        <hr class="form-divider">
+
+        <!-- Photos -->
+        <div class="form-group">
+          <label>Property Photos</label>
+          <div class="photo-upload-area" id="photo-drop">
+            <input type="file" id="photos" name="photos" multiple accept="image/*">
+            <div class="upload-icon">📷</div>
+            <p>Drop photos here or click to browse</p>
+            <div class="upload-hint">JPG, PNG, WebP — up to 10 photos</div>
+          </div>
+          <div class="photo-previews" id="photo-previews"></div>
+        </div>
+
+        <hr class="form-divider">
+
+        <button type="submit" class="submit-btn" id="submit-btn">Submit Listing</button>
+        <div class="form-status" id="form-status"></div>
+      </form>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="listings.html">Exclusive Listings</a>
+        <a href="https://instagram.com/whitaker_realty" target="_blank" rel="noopener">Instagram</a>
+        <a href="mailto:chad@w-realty.com">Email</a>
+        <a href="tel:9547641447">954-764-1447</a>
+      </div>
+      <p>&copy; 2026 Whitaker Realty. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+  <script>
+    // ── CONFIG ──
+    // Replace with your Google Apps Script Web App URL after deploying
+    const WEBHOOK_URL = '%%APPS_SCRIPT_URL%%';
+
+    // ── Photo Preview ──
+    const photoInput = document.getElementById('photos');
+    const photoPreviews = document.getElementById('photo-previews');
+    const dropArea = document.getElementById('photo-drop');
+    let selectedFiles = [];
+
+    photoInput.addEventListener('change', handleFiles);
+
+    ['dragenter', 'dragover'].forEach(e => {
+      dropArea.addEventListener(e, (ev) => { ev.preventDefault(); dropArea.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(e => {
+      dropArea.addEventListener(e, (ev) => { ev.preventDefault(); dropArea.classList.remove('dragover'); });
+    });
+    dropArea.addEventListener('drop', (ev) => {
+      const dt = ev.dataTransfer;
+      if (dt.files.length) {
+        photoInput.files = dt.files;
+        handleFiles();
+      }
+    });
+
+    function handleFiles() {
+      const newFiles = Array.from(photoInput.files);
+      selectedFiles = [...selectedFiles, ...newFiles].slice(0, 10);
+      renderPreviews();
+    }
+
+    function renderPreviews() {
+      photoPreviews.innerHTML = '';
+      selectedFiles.forEach((file, i) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const div = document.createElement('div');
+          div.className = 'photo-preview';
+          div.innerHTML = `
+            <img src="${e.target.result}" alt="Photo ${i + 1}">
+            <button type="button" class="remove-photo" onclick="removePhoto(${i})">×</button>`;
+          photoPreviews.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function removePhoto(idx) {
+      selectedFiles.splice(idx, 1);
+      renderPreviews();
+    }
+
+    // ── Price formatting ──
+    const priceInput = document.getElementById('price');
+    priceInput.addEventListener('blur', () => {
+      const num = parseInt(priceInput.value.replace(/[^\d]/g, ''));
+      if (num) priceInput.value = num.toLocaleString();
+    });
+
+    const sqftInput = document.getElementById('sqft');
+    sqftInput.addEventListener('blur', () => {
+      const num = parseInt(sqftInput.value.replace(/[^\d]/g, ''));
+      if (num) sqftInput.value = num.toLocaleString();
+    });
+
+    // ── Form Submit ──
+    document.getElementById('add-listing-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const btn = document.getElementById('submit-btn');
+      const status = document.getElementById('form-status');
+      btn.disabled = true;
+      status.className = 'form-status loading';
+      status.textContent = 'Submitting listing...';
+
+      try {
+        // Build form data
+        const formData = {
+          address: document.getElementById('address').value,
+          city: document.getElementById('city').value,
+          state: document.getElementById('state').value,
+          zip: document.getElementById('zip').value,
+          price: document.getElementById('price').value.replace(/[^\d]/g, ''),
+          mls: document.getElementById('mls').value,
+          beds: document.getElementById('beds').value,
+          baths: document.getElementById('baths').value,
+          sqft: document.getElementById('sqft').value.replace(/[^\d]/g, ''),
+          yearBuilt: document.getElementById('yearBuilt').value,
+          lotSize: document.getElementById('lotSize').value,
+          agent: document.getElementById('agent').value,
+          description: document.getElementById('description').value,
+          features: document.getElementById('features').value,
+        };
+
+        // Convert photos to base64
+        const photoData = [];
+        for (const file of selectedFiles) {
+          const b64 = await fileToBase64(file);
+          photoData.push({ name: file.name, type: file.type, data: b64 });
+        }
+        formData.photos = photoData;
+
+        const res = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(formData),
+        });
+
+        const result = await res.json();
+        if (result.status === 'ok') {
+          status.className = 'form-status success';
+          status.textContent = '✓ Listing submitted successfully! It will appear on the site within 15 minutes.';
+          document.getElementById('add-listing-form').reset();
+          selectedFiles = [];
+          photoPreviews.innerHTML = '';
+        } else {
+          throw new Error(result.message || 'Submission failed');
+        }
+      } catch (err) {
+        status.className = 'form-status error';
+        status.textContent = '✗ Error: ' + err.message + '. Please try again or email chad@whitakerexclusives.com directly.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function fileToBase64(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(file);
+      });
+    }
+  </script>
+</body>
+</html>
